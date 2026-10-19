@@ -4,7 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
-import "github.com/Spikree/goissues/cmd"
+import "github.com/Spikree/git-issues/cmd"
 
 func main() {
 	cmd.Execute()
