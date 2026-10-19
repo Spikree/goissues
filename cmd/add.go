@@ -18,7 +18,8 @@ import (
 var addCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Use this command to add an issue to your project",
-	Long:  `use this command to add an issue to your project use "git issues add ..."`,
+	Long: `use this command to add an issue to your project use "git issues add ...", this
+	command takes in a title and a body`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// here we get the title and body from the command line
 		title, _ := cmd.Flags().GetString("title")
@@ -36,14 +37,8 @@ var addCmd = &cobra.Command{
 		id := hex.EncodeToString(b)
 
 		// here we store everything in a exact typed format
-		content := fmt.Sprintf(`---
-		id: %s
-		title: %s
-		status: open
-		created: %s
-		---
-		%s
-		`, id, title, time.Now().Format("2006-01-02"), body)
+		content := fmt.Sprintf("---\nid: %s\ntitle: %s\nstatus: open\ncreated: %s\n---\n%s\n",
+			id, title, time.Now().Format("2006-01-02"), body)
 
 		// here we write to the path
 		path := filepath.Join(".issues", id+".md")
