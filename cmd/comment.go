@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,17 +21,10 @@ var commentCmd = &cobra.Command{
 
 		path := filepath.Join(".issues", id+".md")
 
-		if _, err := os.Stat(path); err != nil {
-			fmt.Println("issue not found:", id)
-			os.Exit(1)
-		}
-
-		// we use the path to append the comment at the end of the file, and we use O_WRONGLY so we dont touch the existing
-		// issue structure
-		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+		data, err := os.ReadFile(path)
 
 		if err != nil {
-			fmt.Println("error", err)
+			fmt.Println("issue not found", id)
 			os.Exit(1)
 		}
 
@@ -38,14 +32,34 @@ var commentCmd = &cobra.Command{
 		entry := fmt.Sprintf("\n## Comment by %s on %s\n\n%s\n",
 			helper.GitUser(), time.Now().Format("2006-01-02 15:04"), text)
 
-		// we use the writestring function to add the comment
-		if _, err := f.WriteString(entry); err != nil {
-			f.Close()
+		var finalContent []byte
+
+		commentIdx := bytes.Index(data, []byte("\n## Comment by"))
+		subIssueIdx := bytes.Index(data, []byte("\n### Sub Issue:"))
+
+		insertIdx := -1
+
+		if commentIdx != -1 {
+			insertIdx = commentIdx
+		} else if subIssueIdx != -1 {
+			insertIdx = subIssueIdx
+		}
+
+		if insertIdx != -1 {
+			// Split and inject the new comment entry at the calculated index position
+			finalContent = append(finalContent, data[:insertIdx]...)
+			finalContent = append(finalContent, []byte(entry)...)
+			finalContent = append(finalContent, data[insertIdx:]...)
+		} else {
+			// fallback append if no comments or sub-issues exist yet
+			finalContent = append(data, []byte(entry)...)
+		}
+
+		if err := os.WriteFile(path, finalContent, 0o644); err != nil {
 			fmt.Println("error", err)
 			os.Exit(1)
 		}
 
-		f.Close()
 		fmt.Println("comment added to", id)
 	},
 }
