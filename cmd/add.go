@@ -4,6 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -65,8 +66,10 @@ var addSubIssueCmd = &cobra.Command{
 
 		path := filepath.Join(".issues", id+".md")
 
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Println("Issue not found", id)
+		data, err := os.ReadFile(path)
+
+		if err != nil {
+			fmt.Println("issue not found", id)
 			os.Exit(1)
 		}
 
@@ -74,17 +77,30 @@ var addSubIssueCmd = &cobra.Command{
 		_, _ = rand.Read(b)
 		subIssueId := hex.EncodeToString(b)
 
-		content := fmt.Sprintf("\n### Sub Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
+		entry := fmt.Sprintf("\n### Sub Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
 			title, subIssueId, time.Now().Format("2006-01-02"), body)
 
-		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			fmt.Println("error opening file:", err)
-			os.Exit(1)
-		}
-		defer f.Close()
+		var finalContent []byte
 
-		if _, err := f.WriteString(content); err != nil {
+		subIssueIdx := bytes.Index(data, []byte("\n### Sub Issue:"))
+
+		insertIdx := -1
+
+		if subIssueIdx != -1 {
+			insertIdx = subIssueIdx
+		} else {
+			insertIdx = subIssueIdx
+		}
+
+		if insertIdx != -1 {
+			finalContent = append(finalContent, data[:insertIdx]...)
+			finalContent = append(finalContent, []byte(entry)...)
+			finalContent = append(finalContent, data[insertIdx:]...)
+		} else {
+			finalContent = append(data, []byte(entry)...)
+		}
+
+		if err := os.WriteFile(path, finalContent, 0o644); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(1)
 		}
