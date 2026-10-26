@@ -37,8 +37,8 @@ var addCmd = &cobra.Command{
 		id := hex.EncodeToString(b)
 
 		// here we store everything in a exact typed format
-		content := fmt.Sprintf("---\nid: %s\ntitle: %s\nstatus: open\ncreated: %s\n---\n%s\n",
-			id, title, time.Now().Format("2006-01-02"), body)
+		content := fmt.Sprintf("### Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
+			title, id, time.Now().Format("2006-01-02"), body)
 
 		// here we write to the path
 		path := filepath.Join(".issues", id+".md")
@@ -48,9 +48,48 @@ var addCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			os.Exit(1)
 		}
-		fmt.Println("Created", path)
-
+		fmt.Println("issue Created", path)
 		// fmt.Println("Adding issue:", title)
+	},
+}
+
+var addSubIssueCmd = &cobra.Command{
+	Use:   "sub-issue",
+	Short: "Add a sub issue to the main issue",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		// parent issue id for the sub issue
+		id := args[0]
+		title, _ := cmd.Flags().GetString("title")
+		body, _ := cmd.Flags().GetString("body")
+
+		path := filepath.Join(".issues", id+".md")
+
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			fmt.Println("Issue not found", id)
+			os.Exit(1)
+		}
+
+		b := make([]byte, 3)
+		_, _ = rand.Read(b)
+		subIssueId := hex.EncodeToString(b)
+
+		content := fmt.Sprintf("\n### Sub Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
+			title, subIssueId, time.Now().Format("2006-01-02"), body)
+
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			fmt.Println("error opening file:", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+
+		if _, err := f.WriteString(content); err != nil {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("sub issue created", subIssueId)
 	},
 }
 
@@ -59,6 +98,11 @@ func init() {
 	addCmd.Flags().StringP("title", "t", "", "issue title")
 	addCmd.Flags().StringP("body", "b", "", "issue description")
 	addCmd.MarkFlagRequired("title")
+
+	addSubIssueCmd.Flags().StringP("title", "t", "", "sub issue title")
+	addSubIssueCmd.Flags().StringP("body", "b", "", "sub issue description")
+	addSubIssueCmd.MarkFlagRequired("title")
+	addCmd.AddCommand(addSubIssueCmd)
 
 	// Here you will define your flags and configuration settings.
 
