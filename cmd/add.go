@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,61 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+type Comment struct {
+	Author    string    `json:"author"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SubIssue struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Status    string    `json:"status"`
+	Comments  []Comment `json:"comments,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Issue struct {
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Status    string     `json:"Status"`
+	CreatedAt time.Time  `json:"created_at"`
+	SubIssues []SubIssue `json:"sub_issues,omitempty"`
+	Comments  []Comment  `json:"comments,omitempty"`
+}
+
+// Database scheme config
+const DbPath = ".issues_db.json"
+
+// Load database state from disk into memory
+func loadDB() (map[string]Issue, error) {
+	db := make(map[string]Issue)
+
+	// if the database isnt initilised yet, return initialised map
+	if _, err := os.Stat(DbPath); os.IsNotExist(err) {
+		return db, nil
+	}
+
+	data, err := os.ReadFile(DbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(data, &db)
+	return db, err
+}
+
+func saveDB(db map[string]Issue) error {
+	// marshalIndent keeps the file human readable in Git diffs
+	data, err := json.MarshalIndent(db, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(DbPath, data, 0o644)
+}
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
@@ -26,31 +82,36 @@ var addCmd = &cobra.Command{
 		title, _ := cmd.Flags().GetString("title")
 		body, _ := cmd.Flags().GetString("body")
 
-		// here we create a dir for all the issues and see if we get any errors and if we do we use os.exit(1)
-		if err := os.MkdirAll(".issues", 0o755); err != nil {
-			fmt.Println("error:", err)
+		// Load all the data into ram
+		db, err := loadDB()
+		if err != nil {
+			fmt.Println("Database connection error:", err)
 			os.Exit(1)
 		}
 
-		// here we create a len 6 hex code
+		// Generate a unique primary key
 		b := make([]byte, 3)
-		rand.Read(b)
-		id := hex.EncodeToString(b)
+		_, _ = rand.Read(b)
+		issueId := hex.EncodeToString(b)
 
-		// here we store everything in a exact typed format
-		content := fmt.Sprintf("### Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
-			title, id, time.Now().Format("2006-01-02"), body)
+		newIssue := Issue{
+			ID:        issueId,
+			Title:     title,
+			Body:      body,
+			Status:    "Open",
+			CreatedAt: time.Now(),
+			SubIssues: []SubIssue{},
+			Comments:  []Comment{},
+		}
 
-		// here we write to the path
-		path := filepath.Join(".issues", id+".md")
+		db[issueId] = newIssue
 
-		// we check for any errors while writing
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			fmt.Println("error:", err)
+		if err := saveDB(db); err != nil {
+			fmt.Println("Failed to save transaction records:", err)
 			os.Exit(1)
 		}
-		fmt.Println("issue Created", path)
-		// fmt.Println("Adding issue:", title)
+
+		fmt.Println("Issue created: ", issueId)
 	},
 }
 
