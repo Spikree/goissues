@@ -4,13 +4,11 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -125,12 +123,15 @@ var addSubIssueCmd = &cobra.Command{
 		title, _ := cmd.Flags().GetString("title")
 		body, _ := cmd.Flags().GetString("body")
 
-		path := filepath.Join(".issues", id+".md")
-
-		data, err := os.ReadFile(path)
-
+		db, err := loadDB()
 		if err != nil {
-			fmt.Println("issue not found", id)
+			fmt.Println("Database connection error", err)
+			os.Exit(1)
+		}
+
+		parentIssue, exists := db[id]
+		if !exists {
+			fmt.Println("parent issue not found")
 			os.Exit(1)
 		}
 
@@ -138,31 +139,21 @@ var addSubIssueCmd = &cobra.Command{
 		_, _ = rand.Read(b)
 		subIssueId := hex.EncodeToString(b)
 
-		entry := fmt.Sprintf("\n### Sub Issue: %s\n- **ID:** %s\n- **Status:** open\n- **Created:** %s\n\n%s\n",
-			title, subIssueId, time.Now().Format("2006-01-02"), body)
-
-		var finalContent []byte
-
-		subIssueIdx := bytes.Index(data, []byte("\n### Sub Issue:"))
-
-		insertIdx := -1
-
-		if subIssueIdx != -1 {
-			insertIdx = subIssueIdx
-		} else {
-			insertIdx = subIssueIdx
+		newSubIssue := SubIssue{
+			ID:        subIssueId,
+			Title:     title,
+			Body:      body,
+			Status:    "Open",
+			CreatedAt: time.Now(),
+			Comments:  []Comment{},
 		}
 
-		if insertIdx != -1 {
-			finalContent = append(finalContent, data[:insertIdx]...)
-			finalContent = append(finalContent, []byte(entry)...)
-			finalContent = append(finalContent, data[insertIdx:]...)
-		} else {
-			finalContent = append(data, []byte(entry)...)
-		}
+		parentIssue.SubIssues = append(parentIssue.SubIssues, newSubIssue)
 
-		if err := os.WriteFile(path, finalContent, 0o644); err != nil {
-			fmt.Println("error:", err)
+		db[id] = parentIssue
+
+		if err := saveDB(db); err != nil {
+			fmt.Println("Error creating sub issue", err)
 			os.Exit(1)
 		}
 
