@@ -11,47 +11,21 @@ import (
 	"os"
 	"time"
 
+	"github.com/Spikree/git-issues/helper"
+	"github.com/Spikree/git-issues/types"
 	"github.com/spf13/cobra"
 )
 
-type Comment struct {
-	Author    string    `json:"author"`
-	Text      string    `json:"text"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type SubIssue struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	Status    string    `json:"status"`
-	Comments  []Comment `json:"comments,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type Issue struct {
-	ID        string     `json:"id"`
-	Title     string     `json:"title"`
-	Body      string     `json:"body"`
-	Status    string     `json:"Status"`
-	CreatedAt time.Time  `json:"created_at"`
-	SubIssues []SubIssue `json:"sub_issues,omitempty"`
-	Comments  []Comment  `json:"comments,omitempty"`
-}
-
-// Database scheme config
-const DbPath = ".issues_db.json"
-
 // Load database state from disk into memory
-func loadDB() (map[string]Issue, error) {
-	db := make(map[string]Issue)
+func loadDB() (map[string]types.Issue, error) {
+	db := make(map[string]types.Issue)
 
 	// if the database isnt initilised yet, return initialised map
-	if _, err := os.Stat(DbPath); os.IsNotExist(err) {
+	if _, err := os.Stat(helper.DbPath); os.IsNotExist(err) {
 		return db, nil
 	}
 
-	data, err := os.ReadFile(DbPath)
+	data, err := os.ReadFile(helper.DbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -60,13 +34,13 @@ func loadDB() (map[string]Issue, error) {
 	return db, err
 }
 
-func saveDB(db map[string]Issue) error {
+func saveDB(db map[string]types.Issue) error {
 	// marshalIndent keeps the file human readable in Git diffs
 	data, err := json.MarshalIndent(db, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(DbPath, data, 0o644)
+	return os.WriteFile(helper.DbPath, data, 0o644)
 }
 
 // addCmd represents the add command
@@ -92,14 +66,14 @@ var addCmd = &cobra.Command{
 		_, _ = rand.Read(b)
 		issueId := hex.EncodeToString(b)
 
-		newIssue := Issue{
+		newIssue := types.Issue{
 			ID:        issueId,
 			Title:     title,
 			Body:      body,
 			Status:    "Open",
 			CreatedAt: time.Now(),
-			SubIssues: []SubIssue{},
-			Comments:  []Comment{},
+			SubIssues: []types.SubIssue{},
+			Comments:  []types.Comment{},
 		}
 
 		db[issueId] = newIssue
@@ -139,13 +113,13 @@ var addSubIssueCmd = &cobra.Command{
 		_, _ = rand.Read(b)
 		subIssueId := hex.EncodeToString(b)
 
-		newSubIssue := SubIssue{
+		newSubIssue := types.SubIssue{
 			ID:        subIssueId,
 			Title:     title,
 			Body:      body,
 			Status:    "Open",
 			CreatedAt: time.Now(),
-			Comments:  []Comment{},
+			Comments:  []types.Comment{},
 		}
 
 		parentIssue.SubIssues = append(parentIssue.SubIssues, newSubIssue)
