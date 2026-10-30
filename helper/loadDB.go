@@ -10,7 +10,7 @@ import (
 const DbPath = ".issues_db.json"
 
 // Load database state from disk into memory
-func loadDB() (map[string]types.Issue, error) {
+func LoadDB() (map[string]types.Issue, error) {
 	db := make(map[string]types.Issue)
 
 	// if the database isnt initilised yet, return initialised map

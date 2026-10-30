@@ -6,7 +6,6 @@ package cmd
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -15,33 +14,6 @@ import (
 	"github.com/Spikree/git-issues/types"
 	"github.com/spf13/cobra"
 )
-
-// Load database state from disk into memory
-func loadDB() (map[string]types.Issue, error) {
-	db := make(map[string]types.Issue)
-
-	// if the database isnt initilised yet, return initialised map
-	if _, err := os.Stat(helper.DbPath); os.IsNotExist(err) {
-		return db, nil
-	}
-
-	data, err := os.ReadFile(helper.DbPath)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(data, &db)
-	return db, err
-}
-
-func saveDB(db map[string]types.Issue) error {
-	// marshalIndent keeps the file human readable in Git diffs
-	data, err := json.MarshalIndent(db, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(helper.DbPath, data, 0o644)
-}
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
@@ -55,7 +27,7 @@ var addCmd = &cobra.Command{
 		body, _ := cmd.Flags().GetString("body")
 
 		// Load all the data into ram
-		db, err := loadDB()
+		db, err := helper.LoadDB()
 		if err != nil {
 			fmt.Println("Database connection error:", err)
 			os.Exit(1)
@@ -78,7 +50,7 @@ var addCmd = &cobra.Command{
 
 		db[issueId] = newIssue
 
-		if err := saveDB(db); err != nil {
+		if err := helper.SaveDB(db); err != nil {
 			fmt.Println("Failed to save transaction records:", err)
 			os.Exit(1)
 		}
@@ -97,7 +69,7 @@ var addSubIssueCmd = &cobra.Command{
 		title, _ := cmd.Flags().GetString("title")
 		body, _ := cmd.Flags().GetString("body")
 
-		db, err := loadDB()
+		db, err := helper.LoadDB()
 		if err != nil {
 			fmt.Println("Database connection error", err)
 			os.Exit(1)
@@ -126,7 +98,7 @@ var addSubIssueCmd = &cobra.Command{
 
 		db[id] = parentIssue
 
-		if err := saveDB(db); err != nil {
+		if err := helper.SaveDB(db); err != nil {
 			fmt.Println("Error creating sub issue", err)
 			os.Exit(1)
 		}
