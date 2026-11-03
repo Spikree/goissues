@@ -1,13 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/Spikree/git-issues/helper"
+	"github.com/Spikree/git-issues/types"
 	"github.com/spf13/cobra"
 )
 
@@ -19,44 +18,31 @@ var commentCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		id, text := args[0], args[1]
 
-		path := filepath.Join(".issues", id+".md")
-
-		data, err := os.ReadFile(path)
-
+		db, err := helper.LoadDB()
 		if err != nil {
-			fmt.Println("issue not found", id)
+			fmt.Println("Database connection error:", err)
 			os.Exit(1)
 		}
 
-		// we get the username from the helper function called gitUser
-		entry := fmt.Sprintf("\n## Comment by %s on %s\n\n%s\n",
-			helper.GitUser(), time.Now().Format("2006-01-02 15:04"), text)
+		parentIssue, exists := db[id]
 
-		var finalContent []byte
-
-		commentIdx := bytes.Index(data, []byte("\n## Comment by"))
-		subIssueIdx := bytes.Index(data, []byte("\n### Sub Issue:"))
-
-		insertIdx := -1
-
-		if commentIdx != -1 {
-			insertIdx = commentIdx
-		} else if subIssueIdx != -1 {
-			insertIdx = subIssueIdx
+		if !exists {
+			fmt.Println("Parent issue not found")
+			os.Exit(1)
 		}
 
-		if insertIdx != -1 {
-			// Split and inject the new comment entry at the calculated index position
-			finalContent = append(finalContent, data[:insertIdx]...)
-			finalContent = append(finalContent, []byte(entry)...)
-			finalContent = append(finalContent, data[insertIdx:]...)
-		} else {
-			// fallback append if no comments or sub-issues exist yet
-			finalContent = append(data, []byte(entry)...)
+		newComment := types.Comment{
+			Author:    helper.GitUser(),
+			Text:      text,
+			CreatedAt: time.Now(),
 		}
 
-		if err := os.WriteFile(path, finalContent, 0o644); err != nil {
-			fmt.Println("error", err)
+		parentIssue.Comments = append(parentIssue.Comments, newComment)
+
+		db[id] = parentIssue
+
+		if err := helper.SaveDB(db); err != nil {
+			fmt.Println("Error adding a comment", err)
 			os.Exit(1)
 		}
 
