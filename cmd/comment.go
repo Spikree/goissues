@@ -26,20 +26,38 @@ var commentCmd = &cobra.Command{
 
 		parentIssue, exists := db[id]
 
-		if !exists {
-			fmt.Println("Parent issue not found")
-			os.Exit(1)
-		}
-
 		newComment := types.Comment{
 			Author:    helper.GitUser(),
 			Text:      text,
 			CreatedAt: time.Now(),
 		}
 
-		parentIssue.Comments = append(parentIssue.Comments, newComment)
+		if exists {
+			parentIssue.Comments = append(parentIssue.Comments, newComment)
+			db[id] = parentIssue
+		} else {
+		searchSubIssues:
+			for parentId, parent := range db {
+				for i := range parent.SubIssues {
+					if parent.SubIssues[i].ID != id {
+						continue
+					}
 
-		db[id] = parentIssue
+					parent.SubIssues[i].Comments = append(
+						parent.SubIssues[i].Comments,
+						newComment,
+					)
+					db[parentId] = parent
+					exists = true
+					break searchSubIssues
+				}
+			}
+		}
+
+		if !exists {
+			fmt.Println("issue not found")
+			os.Exit(1)
+		}
 
 		if err := helper.SaveDB(db); err != nil {
 			fmt.Println("Error adding a comment", err)

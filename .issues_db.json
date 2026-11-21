@@ -18,6 +18,13 @@
         "title": "sub issue",
         "body": "sub issue desc",
         "status": "Open",
+        "comments": [
+          {
+            "author": "Spikree",
+            "text": "hello",
+            "created_at": "2026-11-21T21:01:35.418056Z"
+          }
+        ],
         "created_at": "2026-10-29T01:22:17.794596Z"
       }
     ],
