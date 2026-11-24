@@ -6,9 +6,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
+	"github.com/Spikree/git-issues/helper"
 	"github.com/spf13/cobra"
 )
 
@@ -20,28 +19,69 @@ var unresolveCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
-		path := filepath.Join(".issues", id+".md")
 
-		data, err := os.ReadFile(path)
-
+		db, err := helper.LoadDB()
 		if err != nil {
-			fmt.Println("issue not found", id)
+			fmt.Println("Database connection error:", err)
 			os.Exit(1)
 		}
 
-		text := string(data)
-		if !strings.Contains(text, "status: resolved") {
-			fmt.Println("issue is not resolved", id)
+		parentIssue, exists := db[id]
+
+		if exists {
+			if parentIssue.Status == "Open" {
+				fmt.Println("Issue is already open", id)
+				return
+			}
+
+			if parentIssue.Status != "Resolved" {
+				fmt.Fprintln(os.Stderr, "Cannot reopen issue with status:", parentIssue.Status)
+				os.Exit(1)
+			}
+
+			parentIssue.Status = "Open"
+			db[id] = parentIssue
+		} else {
+		searchSubIssues:
+			for parentID, parent := range db {
+				for i := range parent.SubIssues {
+					// Update the slice element, not a copy or its parent.
+					sub := &parent.SubIssues[i]
+					if sub.ID != id {
+						continue
+					}
+
+					if sub.Status == "Open" {
+						fmt.Println("Issue is already open", id)
+						return
+					}
+
+					if sub.Status != "Resolved" {
+						fmt.Fprintln(os.Stderr, "Cannot open issue with status:", sub.Status)
+						os.Exit(1)
+					}
+
+					sub.Status = "Open"
+					db[parentID] = parent
+
+					exists = true
+					// Leave both loops and continue to the shared save below.
+					break searchSubIssues
+				}
+			}
+		}
+
+		if !exists {
+			fmt.Fprintln(os.Stderr, "Issue not found", id)
 			os.Exit(1)
 		}
 
-		text = strings.Replace(text, "status: resolved", "status: open", 1)
-
-		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
-			fmt.Println("error", err)
+		if err := helper.SaveDB(db); err != nil {
+			fmt.Fprintln(os.Stderr, "Error saving issue", err)
 			os.Exit(1)
 		}
-		fmt.Println("issue opened", id)
+
+		fmt.Println("Issue Opened", id)
 	},
 }
 
