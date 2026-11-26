@@ -3,7 +3,7 @@
     "id": "39012c",
     "title": "new issue test",
     "body": "new issue desc",
-    "Status": "Open",
+    "Status": "Resolved",
     "created_at": "2026-10-27T23:27:33.016749Z",
     "sub_issues": [
       {

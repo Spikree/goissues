@@ -11,14 +11,30 @@ import (
 	"text/tabwriter"
 
 	"github.com/Spikree/git-issues/helper"
+	"github.com/Spikree/git-issues/types"
 	"github.com/spf13/cobra"
 )
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
-	Use:   "list",
+	Use:   "list [status]",
 	Short: "List all your issues",
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		status := "all"
+		if len(args) > 0 {
+			status = strings.ToLower(args[0])
+		}
+		switch status {
+		case "all", "open", "resolved":
+		default:
+			fmt.Fprintf(cmd.ErrOrStderr(), "Unknown status %q: use all, open, or resolved\n", status)
+			os.Exit(1)
+		}
+		matchesStatus := func(issueStatus string) bool {
+			return status == "all" || strings.EqualFold(issueStatus, status)
+		}
+
 		db, err := helper.LoadDB()
 		if err != nil {
 			fmt.Println("Database connection error", err)
@@ -41,11 +57,27 @@ var listCmd = &cobra.Command{
 		fmt.Fprintln(w, "──\t──────\t─────")
 		for _, id := range ids {
 			issue := db[id]
-			fmt.Fprintf(w, "%s\t%s\t%s\n", listCell(id), listCell(issue.Status), listCell(issue.Title))
 
-			for i, sub := range issue.SubIssues {
+			// store all the visible sub issues here
+			var visibleSubs []types.SubIssue
+			// go through the sub issues to see if their status match the args status if they do store them in the
+			// visibleSubs
+			for _, sub := range issue.SubIssues {
+				if matchesStatus(sub.Status) {
+					visibleSubs = append(visibleSubs, sub)
+				}
+			}
+			// if the main issue doesnt match and its sub issues also dont match status dont do anything
+			if !matchesStatus(issue.Status) && len(visibleSubs) == 0 {
+				continue
+			}
+
+			// else we print the issue with matching status and the issue which might not have a mathcing status but has
+			// sub issues whos status match
+			fmt.Fprintf(w, "%s\t%s\t%s\n", listCell(id), listCell(issue.Status), listCell(issue.Title))
+			for i, sub := range visibleSubs {
 				branch := "  ├─ "
-				if i == len(issue.SubIssues)-1 {
+				if i == len(visibleSubs)-1 {
 					branch = "  └─ "
 				}
 				fmt.Fprintf(w, "%s%s\t%s\t%s\n", branch, listCell(sub.ID), listCell(sub.Status), listCell(sub.Title))
